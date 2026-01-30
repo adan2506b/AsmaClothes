@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOIRÉ Store</title>
+
+<style>
+body{margin:0;font-family:Arial;background:#0f0f0f;color:#fff}
+header{text-align:center;padding:20px;border-bottom:1px solid #222}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;padding:25px}
+.card{background:#161616;border-radius:12px;overflow:hidden}
+.card img{width:100%;height:260px;object-fit:cover}
+.info{padding:15px}
+.price{color:#00ffae;font-weight:bold}
+button{padding:10px;border:none;border-radius:6px;cursor:pointer;margin-top:6px}
+.buyBtn{background:#00ffae;width:100%;font-weight:bold}
+.adminBtn{background:#333;color:#fff;width:100%}
+footer{text-align:center;padding:15px;color:#777}
+
+#adminLogin,#adminPanel,#cartBox{
+display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+background:#0b0b0b;z-index:999;overflow:auto
+}
+.box{max-width:500px;margin:60px auto;background:#151515;padding:25px;border-radius:12px}
+input{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
+.cartItem{border-bottom:1px solid #222;padding:10px 0}
+.manageProductItem{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #222}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1 id="storeName">NOIRÉ</h1>
+<p id="tagline">Minimal • Street • Premium</p>
+<button onclick="openAdminLogin()">Admin Panel</button>
+</header>
+
+<section class="products" id="productList"></section>
+<footer>© 2026 NOIRÉ Clothing</footer>
+
+<!-- CART -->
+<div id="cartBox">
+<div class="box">
+<h2>Your Cart <span onclick="closeCart()" style="float:right;cursor:pointer">❌</span></h2>
+<div id="cartItems"></div>
+<button class="buyBtn" onclick="placeOrder()">Confirm Order (WhatsApp)</button>
+</div>
+</div>
+
+<!-- ADMIN LOGIN -->
+<div id="adminLogin">
+<div class="box">
+<h2>Admin Login</h2>
+<input type="password" id="adminPass" placeholder="Admin password">
+<button onclick="loginAdmin()">Login</button>
+</div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="adminPanel">
+<div class="box">
+<h2>Store Settings</h2>
+<input id="storeNameInput" placeholder="Store name">
+<input id="taglineInput" placeholder="Tagline">
+<button onclick="saveStore()">Save Store Info</button>
+
+<hr>
+
+<h2>Add / Edit Product</h2>
+<input id="pName" placeholder="Product name">
+<input id="pPrice" placeholder="Price">
+<input type="file" id="pImg" accept="image/*">
+<input type="hidden" id="editIndex">
+<button onclick="saveProduct()">Save Product</button>
+
+<hr>
+
+<h2>Manage Products</h2>
+<div id="manageProducts"></div>
+
+<hr>
+<button onclick="logoutAdmin()">Logout</button>
+</div>
+</div>
+
+<script>
+const PASSWORD="asmasubhan123";
+const WHATSAPP_NUMBER="923322721552";
+
+let products = JSON.parse(localStorage.getItem("products")) || [];
+let cart = [];
+
+// 🔥 ADMIN STATE
+let isAdmin = localStorage.getItem("isAdmin")==="true";
+
+/* STORE INFO */
+function loadStore(){
+  storeName.innerText = localStorage.getItem("storeName") || "NOIRÉ";
+  tagline.innerText = localStorage.getItem("tagline") || "Minimal • Street • Premium";
+}
+function saveStore(){
+  if(storeNameInput.value) localStorage.setItem("storeName",storeNameInput.value);
+  if(taglineInput.value) localStorage.setItem("tagline",taglineInput.value);
+  loadStore();
+  alert("Store info saved");
+}
+
+/* PRODUCTS */
+function renderProducts(){
+  productList.innerHTML="";
+  products.forEach((p,i)=>{
+    productList.innerHTML+=`
+    <div class="card">
+      <img src="${p.img}">
+      <div class="info">
+        <h3>${p.name}</h3>
+        <p class="price">Rs ${p.price}</p>
+        <button class="buyBtn" onclick="addToCart(${i})">Add to Cart</button>
+      </div>
+    </div>`;
+  });
+  localStorage.setItem("products",JSON.stringify(products));
+}
+
+function saveProduct(){
+  const file=pImg.files[0];
+  let index=editIndex.value;
+
+  if(!pName.value || !pPrice.value){
+    alert("Name and Price required"); return;
+  }
+
+  if(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+      if(index===""){
+        products.push({name:pName.value,price:pPrice.value,img:reader.result});
+      }else{
+        products[index]={name:pName.value,price:pPrice.value,img:reader.result};
+      }
+      renderProducts();
+      renderManageProducts();
+      clearForm();
+    };
+    reader.readAsDataURL(file);
+  }else{
+    alert("Please select an image");
+  }
+}
+
+function editProduct(i){
+  pName.value=products[i].name;
+  pPrice.value=products[i].price;
+  editIndex.value=i;
+}
+
+function deleteProduct(i){
+  if(confirm("Delete this product?")){
+    products.splice(i,1);
+    renderProducts();
+    renderManageProducts();
+  }
+}
+
+function clearForm(){
+  pName.value="";
+  pPrice.value="";
+  pImg.value="";
+  editIndex.value="";
+}
+
+/* CART */
+function addToCart(i){cart.push(products[i]);openCart();}
+function openCart(){
+  cartBox.style.display="block";
+  cartItems.innerHTML="";
+  cart.forEach(c=>{
+    cartItems.innerHTML+=`<div class='cartItem'>${c.name} - Rs ${c.price}</div>`;
+  });
+}
+function closeCart(){cartBox.style.display="none";}
+function placeOrder(){
+  if(cart.length===0){alert("Cart is empty"); return;}
+  let msg="New Order:%0A";
+  cart.forEach(c=>msg+=`${c.name} - Rs ${c.price}%0A`);
+  window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`,"_blank");
+}
+
+/* ADMIN */
+function openAdminLogin(){adminLogin.style.display="block";}
+function loginAdmin(){
+  if(adminPass.value===PASSWORD){
+    isAdmin=true;
+    localStorage.setItem("isAdmin","true");
+    adminLogin.style.display="none";
+    adminPanel.style.display="block";
+    renderManageProducts();
+  }else alert("Wrong password");
+}
+function logoutAdmin(){
+  isAdmin=false;
+  localStorage.removeItem("isAdmin");
+  adminPanel.style.display="none";
+}
+
+/* MANAGE PRODUCTS (Admin) */
+function renderManageProducts(){
+  if(!isAdmin) return;
+  manageProducts.innerHTML="";
+  products.forEach((p,i)=>{
+    manageProducts.innerHTML += `
+      <div class="manageProductItem">
+        <span>${p.name} - Rs ${p.price}</span>
+        <div style="display:flex;gap:5px">
+          <button class="adminBtn" onclick="editProduct(${i})">✏️ Edit</button>
+          <button class="adminBtn" onclick="deleteProduct(${i})">🗑 Delete</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* INIT */
+loadStore();
+renderProducts();
+if(isAdmin) renderManageProducts();
+</script>
+
+</body>
+</html>
