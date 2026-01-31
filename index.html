@@ -8,24 +8,39 @@
 <style>
 body{margin:0;font-family:Arial;background:#0f0f0f;color:#fff}
 header{text-align:center;padding:20px;border-bottom:1px solid #222}
-.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;padding:25px}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;padding:25px}
 .card{background:#161616;border-radius:12px;overflow:hidden}
-.card img{width:100%;height:260px;object-fit:cover}
+
+.slider{position:relative}
+.slider img, .slider video{
+width:100%;height:260px;object-fit:cover;display:none
+}
+.slider img.active, .slider video.active{display:block}
+
+.dots{text-align:center;padding:5px}
+.dot{
+height:8px;width:8px;background:#555;border-radius:50%;
+display:inline-block;margin:3px;cursor:pointer
+}
+.dot.active{background:#00ffae}
+
 .info{padding:15px}
 .price{color:#00ffae;font-weight:bold}
+.desc{font-size:14px;color:#ccc}
+
 button{padding:10px;border:none;border-radius:6px;cursor:pointer;margin-top:6px}
 .buyBtn{background:#00ffae;width:100%;font-weight:bold}
-.adminBtn{background:#333;color:#fff;width:100%}
+.adminBtn{background:#333;color:#fff}
+
 footer{text-align:center;padding:15px;color:#777}
 
 #adminLogin,#adminPanel,#cartBox{
 display:none;position:fixed;top:0;left:0;width:100%;height:100%;
 background:#0b0b0b;z-index:999;overflow:auto
 }
-.box{max-width:500px;margin:60px auto;background:#151515;padding:25px;border-radius:12px}
-input{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
-.cartItem{border-bottom:1px solid #222;padding:10px 0}
-.manageProductItem{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #222}
+.box{max-width:520px;margin:50px auto;background:#151515;padding:25px;border-radius:12px}
+input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
+.manageItem{border-bottom:1px solid #222;padding:8px 0}
 </style>
 </head>
 
@@ -43,9 +58,9 @@ input{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
 <!-- CART -->
 <div id="cartBox">
 <div class="box">
-<h2>Your Cart <span onclick="closeCart()" style="float:right;cursor:pointer">❌</span></h2>
+<h2>Cart ❌ <span style="float:right;cursor:pointer" onclick="closeCart()">X</span></h2>
 <div id="cartItems"></div>
-<button class="buyBtn" onclick="placeOrder()">Confirm Order (WhatsApp)</button>
+<button class="buyBtn" onclick="placeOrder()">Order on WhatsApp</button>
 </div>
 </div>
 
@@ -53,7 +68,7 @@ input{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
 <div id="adminLogin">
 <div class="box">
 <h2>Admin Login</h2>
-<input type="password" id="adminPass" placeholder="Admin password">
+<input type="password" id="adminPass" placeholder="Password">
 <button onclick="loginAdmin()">Login</button>
 </div>
 </div>
@@ -61,22 +76,28 @@ input{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
 <!-- ADMIN PANEL -->
 <div id="adminPanel">
 <div class="box">
+
 <h2>Store Settings</h2>
-<input id="storeNameInput" placeholder="Store name">
+<input id="storeNameInput" placeholder="Store Name">
 <input id="taglineInput" placeholder="Tagline">
-<button onclick="saveStore()">Save Store Info</button>
+<button onclick="saveStore()">Save Store</button>
 
 <hr>
 
-<h2>Add / Edit Product</h2>
-<input id="pName" placeholder="Product name">
+<h2>Add Product</h2>
+<input id="pName" placeholder="Product Name">
 <input id="pPrice" placeholder="Price">
-<input type="file" id="pImg" accept="image/*">
-<input type="hidden" id="editIndex">
-<button onclick="saveProduct()">Save Product</button>
+<textarea id="pDesc" placeholder="Description"></textarea>
+
+<h3>Images (optional)</h3>
+<input type="file" id="pImgs" multiple accept="image/*">
+
+<h3>Video (optional)</h3>
+<input type="file" id="pVideo" accept="video/*">
+
+<button type="button" onclick="saveProduct()">Save Product</button>
 
 <hr>
-
 <h2>Manage Products</h2>
 <div id="manageProducts"></div>
 
@@ -87,145 +108,153 @@ input{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:none}
 
 <script>
 const PASSWORD="asmasubhan123";
-const WHATSAPP_NUMBER="923322721552";
+const WHATSAPP="923322721552";
 
-let products = JSON.parse(localStorage.getItem("products")) || [];
-let cart = [];
+let products=JSON.parse(localStorage.getItem("products"))||[];
+let cart=[];
+let isAdmin=localStorage.getItem("isAdmin")==="true";
 
-// 🔥 ADMIN STATE
-let isAdmin = localStorage.getItem("isAdmin")==="true";
-
-/* STORE INFO */
+/* STORE */
 function loadStore(){
-  storeName.innerText = localStorage.getItem("storeName") || "NOIRÉ";
-  tagline.innerText = localStorage.getItem("tagline") || "Minimal • Street • Premium";
+storeName.innerText=localStorage.getItem("storeName")||"NOIRÉ";
+tagline.innerText=localStorage.getItem("tagline")||"Minimal • Street • Premium";
 }
 function saveStore(){
-  if(storeNameInput.value) localStorage.setItem("storeName",storeNameInput.value);
-  if(taglineInput.value) localStorage.setItem("tagline",taglineInput.value);
-  loadStore();
-  alert("Store info saved");
+localStorage.setItem("storeName",storeNameInput.value);
+localStorage.setItem("tagline",taglineInput.value);
+loadStore(); alert("Saved");
 }
 
 /* PRODUCTS */
 function renderProducts(){
-  productList.innerHTML="";
-  products.forEach((p,i)=>{
-    productList.innerHTML+=`
-    <div class="card">
-      <img src="${p.img}">
-      <div class="info">
-        <h3>${p.name}</h3>
-        <p class="price">Rs ${p.price}</p>
-        <button class="buyBtn" onclick="addToCart(${i})">Add to Cart</button>
-      </div>
-    </div>`;
-  });
-  localStorage.setItem("products",JSON.stringify(products));
+productList.innerHTML="";
+products.forEach((p,i)=>{
+let slides="";
+let dots="";
+let count=0;
+
+p.imgs.forEach(img=>{
+slides+=`<img src="${img}" class="${count==0?'active':''}">`;
+dots+=`<span class="dot ${count==0?'active':''}" onclick="slide(${i},${count})"></span>`;
+count++;
+});
+
+if(p.video){
+slides+=`<video src="${p.video}" controls></video>`;
+dots+=`<span class="dot" onclick="slide(${i},${count})"></span>`;
 }
 
+productList.innerHTML+=`
+<div class="card">
+<div class="slider" id="slider${i}">${slides}</div>
+<div class="dots">${dots}</div>
+<div class="info">
+<h3>${p.name}</h3>
+<p class="price">Rs ${p.price}</p>
+<p class="desc">${p.desc}</p>
+<button class="buyBtn" onclick="addToCart(${i})">Add to Cart</button>
+</div>
+</div>`;
+});
+localStorage.setItem("products",JSON.stringify(products));
+}
+
+function slide(p,i){
+let slides=document.querySelectorAll(`#slider${p} img, #slider${p} video`);
+let dots=document.querySelectorAll(`#slider${p} ~ .dots .dot`);
+slides.forEach(s=>s.classList.remove("active"));
+dots.forEach(d=>d.classList.remove("active"));
+slides[i].classList.add("active");
+dots[i].classList.add("active");
+}
+
+/* SAVE PRODUCT */
 function saveProduct(){
-  const file=pImg.files[0];
-  let index=editIndex.value;
-
-  if(!pName.value || !pPrice.value){
-    alert("Name and Price required"); return;
-  }
-
-  if(file){
-    const reader=new FileReader();
-    reader.onload=()=>{
-      if(index===""){
-        products.push({name:pName.value,price:pPrice.value,img:reader.result});
-      }else{
-        products[index]={name:pName.value,price:pPrice.value,img:reader.result};
-      }
-      renderProducts();
-      renderManageProducts();
-      clearForm();
-    };
-    reader.readAsDataURL(file);
-  }else{
-    alert("Please select an image");
-  }
+if(!pName.value||!pPrice.value||!pDesc.value){
+alert("Name, price & description required");return;
+}
+if(pImgs.files.length===0 && !pVideo.files[0]){
+alert("Upload image or video");return;
 }
 
-function editProduct(i){
-  pName.value=products[i].name;
-  pPrice.value=products[i].price;
-  editIndex.value=i;
+let imgs=[]; let loaded=0;
+
+if(pImgs.files.length>0){
+[...pImgs.files].forEach(f=>{
+let r=new FileReader();
+r.onload=()=>{imgs.push(r.result);loaded++;
+if(loaded===pImgs.files.length)handleVideo(imgs);};
+r.readAsDataURL(f);
+});
+}else handleVideo(imgs);
+
+function handleVideo(imgs){
+if(pVideo.files[0]){
+let vr=new FileReader();
+vr.onload=()=>finalSave(imgs,vr.result);
+vr.readAsDataURL(pVideo.files[0]);
+}else finalSave(imgs,null);
 }
 
-function deleteProduct(i){
-  if(confirm("Delete this product?")){
-    products.splice(i,1);
-    renderProducts();
-    renderManageProducts();
-  }
+function finalSave(imgs,video){
+products.push({name:pName.value,price:pPrice.value,desc:pDesc.value,imgs,video});
+clearForm(); renderProducts(); renderManage();
+}
 }
 
 function clearForm(){
-  pName.value="";
-  pPrice.value="";
-  pImg.value="";
-  editIndex.value="";
+pName.value="";pPrice.value="";pDesc.value="";
+pImgs.value="";pVideo.value="";
 }
 
 /* CART */
 function addToCart(i){cart.push(products[i]);openCart();}
 function openCart(){
-  cartBox.style.display="block";
-  cartItems.innerHTML="";
-  cart.forEach(c=>{
-    cartItems.innerHTML+=`<div class='cartItem'>${c.name} - Rs ${c.price}</div>`;
-  });
+cartBox.style.display="block";cartItems.innerHTML="";
+cart.forEach(c=>cartItems.innerHTML+=`${c.name} - Rs ${c.price}<br>`);
 }
 function closeCart(){cartBox.style.display="none";}
 function placeOrder(){
-  if(cart.length===0){alert("Cart is empty"); return;}
-  let msg="New Order:%0A";
-  cart.forEach(c=>msg+=`${c.name} - Rs ${c.price}%0A`);
-  window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`,"_blank");
+let msg="Order:%0A";
+cart.forEach(c=>msg+=`${c.name} - Rs ${c.price}%0A`);
+window.open(`https://wa.me/${WHATSAPP}?text=${msg}`,"_blank");
 }
 
 /* ADMIN */
 function openAdminLogin(){adminLogin.style.display="block";}
 function loginAdmin(){
-  if(adminPass.value===PASSWORD){
-    isAdmin=true;
-    localStorage.setItem("isAdmin","true");
-    adminLogin.style.display="none";
-    adminPanel.style.display="block";
-    renderManageProducts();
-  }else alert("Wrong password");
+if(adminPass.value===PASSWORD){
+localStorage.setItem("isAdmin","true");
+adminLogin.style.display="none";
+adminPanel.style.display="block";
+renderManage();
+}else alert("Wrong password");
 }
 function logoutAdmin(){
-  isAdmin=false;
-  localStorage.removeItem("isAdmin");
-  adminPanel.style.display="none";
+localStorage.removeItem("isAdmin");
+adminPanel.style.display="none";
 }
 
-/* MANAGE PRODUCTS (Admin) */
-function renderManageProducts(){
-  if(!isAdmin) return;
-  manageProducts.innerHTML="";
-  products.forEach((p,i)=>{
-    manageProducts.innerHTML += `
-      <div class="manageProductItem">
-        <span>${p.name} - Rs ${p.price}</span>
-        <div style="display:flex;gap:5px">
-          <button class="adminBtn" onclick="editProduct(${i})">✏️ Edit</button>
-          <button class="adminBtn" onclick="deleteProduct(${i})">🗑 Delete</button>
-        </div>
-      </div>
-    `;
-  });
+function renderManage(){
+manageProducts.innerHTML="";
+products.forEach((p,i)=>{
+manageProducts.innerHTML+=`
+<div class="manageItem">
+${p.name} - Rs ${p.price}
+<button class="adminBtn" onclick="deleteProduct(${i})">Delete</button>
+</div>`;
+});
+}
+function deleteProduct(i){
+if(confirm("Delete?")){
+products.splice(i,1);
+renderProducts();renderManage();
+}
 }
 
 /* INIT */
-loadStore();
-renderProducts();
-if(isAdmin) renderManageProducts();
+loadStore();renderProducts();
+if(isAdmin){adminPanel.style.display="block";renderManage();}
 </script>
 
 </body>
